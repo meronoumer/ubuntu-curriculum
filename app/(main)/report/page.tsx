@@ -1,14 +1,12 @@
-export default function ReportPage() {
-  return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-900">Submit Report</h1>
-      <p className="text-sm text-gray-500">
-        Record attendance, engagement, and notes for your session.
-      </p>
-      {/* Report form — coming in a later step */}
-      <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">
-        Report form coming soon
-      </div>
-    </div>
-  );
+import { MOCK_SESSIONS } from "@/app/_lib/mock-data";
+import ReportForm from "./_components/ReportForm";
+
+export default async function ReportPage(props: PageProps<"/report">) {
+  const { sessionId } = await props.searchParams as { sessionId?: string };
+
+  // Only pre-select if the id actually exists in our data
+  const preselected =
+    MOCK_SESSIONS.some((s) => s.id === sessionId) ? (sessionId ?? null) : null;
+
+  return <ReportForm sessions={MOCK_SESSIONS} preselectedSessionId={preselected} />;
 }
