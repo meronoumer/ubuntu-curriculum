@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { type DbReport } from "@/app/_lib/supabase";
-import { getSupabaseServerClient } from "@/app/_lib/supabase-server";
+import { getSupabaseServerClient, fetchSessions } from "@/app/_lib/supabase-server";
 import StatsBar from "./_components/StatsBar";
 import ReportCard, { type DisplayReport } from "./_components/ReportCard";
 import LocalReportsFallback from "./_components/LocalReportsFallback";
@@ -31,6 +32,7 @@ function toDisplay(r: DbReport): DisplayReport {
     id: r.id,
     sessionTitle: r.session_title,
     submittedAt: r.submitted_at,
+    submittedBy: r.submitted_by ?? undefined,
     attendees: r.attendees,
     engagement: r.engagement,
     highlights: r.highlights,
@@ -76,7 +78,10 @@ export default async function AdminPage() {
     }
   }
 
-  const reports = await fetchReports();
+  const [reports, sessions] = await Promise.all([
+    fetchReports(),
+    fetchSessions(),
+  ]);
 
   // Supabase not configured — fall back to localStorage view
   if (reports === null) {
@@ -87,6 +92,14 @@ export default async function AdminPage() {
       </div>
     );
   }
+
+  // Completion tracking
+  const totalSessions     = sessions?.length ?? 0;
+  const completedSessions = sessions?.filter((s) => s.status === "completed").length ?? 0;
+  const inProgressSessions = sessions?.filter((s) => s.status === "in-progress").length ?? 0;
+  const completionPct     = totalSessions > 0
+    ? Math.round((completedSessions / totalSessions) * 100)
+    : 0;
 
   const grouped = groupBySession(reports);
 
@@ -103,10 +116,68 @@ export default async function AdminPage() {
             Admin Dashboard
           </h1>
         </div>
-        <span className="text-xs text-[#1F2937]/40 bg-[#EDE4D3] px-3 py-1.5 rounded-full">
-          Live · Supabase
-        </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/sessions"
+            className="rounded-lg border border-[#1F4D3A] px-3 py-1.5 text-xs font-medium text-[#1F4D3A] hover:bg-[#1F4D3A]/5 transition-colors"
+          >
+            Manage sessions →
+          </Link>
+          <span className="text-xs text-[#1F2937]/40 bg-[#EDE4D3] px-3 py-1.5 rounded-full">
+            Live · Supabase
+          </span>
+        </div>
       </div>
+
+      {/* ── Session completion tracking ──────────────────────────────────── */}
+      {sessions !== null && totalSessions > 0 && (
+        <div className="rounded-2xl border border-[#EDE4D3] bg-white px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7A5C3E]">
+              Session delivery
+            </p>
+            <Link
+              href="/admin/sessions"
+              className="text-xs text-[#7A5C3E]/60 hover:text-[#7A5C3E] transition-colors"
+            >
+              View all →
+            </Link>
+          </div>
+
+          {/* Stat row */}
+          <div className="flex flex-wrap gap-6 text-sm">
+            <div>
+              <p className="text-2xl font-semibold text-[#1F2937]">{completedSessions}</p>
+              <p className="text-xs text-[#1F2937]/40">completed</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-[#1F2937]">{inProgressSessions}</p>
+              <p className="text-xs text-[#1F2937]/40">in progress</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-[#1F2937]">{totalSessions - completedSessions - inProgressSessions}</p>
+              <p className="text-xs text-[#1F2937]/40">upcoming</p>
+            </div>
+          </div>
+
+          {/* Completion bar */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-[#1F2937]/40">
+              <span>Completion rate</span>
+              <span className="font-medium text-[#1F2937]">{completionPct}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-[#EDE4D3]">
+              <div
+                className="h-2 rounded-full bg-[#1F4D3A] transition-all duration-500"
+                style={{ width: `${completionPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-[#1F2937]/40">
+              {completedSessions} of {totalSessions} planned session{totalSessions !== 1 ? "s" : ""} completed
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Summary stats + engagement breakdown ────────────────────────── */}
       <StatsBar reports={reports} />
@@ -168,19 +239,6 @@ export default async function AdminPage() {
         </div>
       )}
 
-      {/* ── Facilitator tracking note ────────────────────────────────────── */}
-      <div className="rounded-xl border border-[#EDE4D3] bg-white px-4 py-4">
-        <p className="text-xs font-semibold text-[#7A5C3E] uppercase tracking-wide mb-1">
-          Coming next: per-facilitator summaries
-        </p>
-        <p className="text-sm text-[#1F2937]/60 leading-relaxed">
-          Reports are currently grouped by session. To also group by facilitator,
-          add a <code className="bg-[#EDE4D3] px-1 rounded text-xs">submitted_by</code> column
-          (text, stores the facilitator&apos;s email) to the{" "}
-          <code className="bg-[#EDE4D3] px-1 rounded text-xs">reports</code> table in Supabase,
-          then capture it in the report form on submit.
-        </p>
-      </div>
 
     </div>
   );

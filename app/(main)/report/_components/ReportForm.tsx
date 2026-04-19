@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@/app/_lib/mock-data";
 import { saveReport, syncPendingReports } from "@/app/_lib/reports";
+import { getSupabaseClient } from "@/app/_lib/supabase";
 // ─── Engagement star picker ───────────────────────────────────────────────────
 
 function StarPicker({
@@ -162,14 +163,20 @@ export default function ReportForm({ sessions, preselectedSessionId }: Props) {
     return Object.keys(next).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
 
+    // Identify the logged-in facilitator so the report is attributable
+    const supabase = getSupabaseClient();
+    const submittedBy =
+      supabase ? (await supabase.auth.getUser()).data.user?.email ?? "" : "";
+
     const session = sessions.find((s) => s.id === form.sessionId)!;
-    const report = saveReport({
+    saveReport({
       sessionId: form.sessionId,
       sessionTitle: session.title,
+      submittedBy,
       attendees: parseInt(form.attendees, 10),
       engagement: form.engagement,
       highlights: form.highlights.trim(),

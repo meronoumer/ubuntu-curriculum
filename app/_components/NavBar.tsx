@@ -9,6 +9,12 @@ const facilitatorLinks = [
   { href: "/report", label: "Report" },
 ];
 
+const adminLinks = [
+  ...facilitatorLinks,
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/sessions", label: "Manage" },
+];
+
 type NavBarProps = {
   isAdmin: boolean;
   userEmail: string;
@@ -25,9 +31,7 @@ export default function NavBar({ isAdmin, userEmail }: NavBarProps) {
     router.push("/login");
   }
 
-  const links = isAdmin
-    ? [...facilitatorLinks, { href: "/admin", label: "Admin" }]
-    : facilitatorLinks;
+  const links = isAdmin ? adminLinks : facilitatorLinks;
 
   // Derive a short display name from the email, e.g. "fatima@org.com" → "fatima"
   const displayName = userEmail ? userEmail.split("@")[0] : "";
@@ -49,7 +53,10 @@ export default function NavBar({ isAdmin, userEmail }: NavBarProps) {
             key={href}
             href={href}
             className={
-              pathname.startsWith(href)
+              // Use exact match for /admin and /admin/sessions to avoid both highlighting at once
+              (href === "/admin" || href === "/admin/sessions"
+                ? pathname === href
+                : pathname.startsWith(href))
                 ? "font-semibold underline underline-offset-4 decoration-[#D9B44A]"
                 : "opacity-70 hover:opacity-100 transition-opacity"
             }

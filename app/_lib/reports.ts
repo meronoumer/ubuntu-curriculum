@@ -5,6 +5,7 @@ export type Report = {
   sessionId: string;
   sessionTitle: string;
   submittedAt: string;   // ISO datetime string
+  submittedBy: string;   // email of the facilitator who submitted
   attendees: number;
   engagement: number;    // 1–5
   highlights: string;
@@ -22,8 +23,8 @@ export function loadReports(): Report[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Partial<Report>[];
-    // Back-fill `synced` for reports created before this field existed
-    return parsed.map((r) => ({ synced: false, ...r } as Report));
+    // Back-fill defaults for reports created before these fields existed
+    return parsed.map((r) => ({ synced: false, submittedBy: "", ...r } as Report));
   } catch {
     return [];
   }
@@ -68,6 +69,7 @@ function toDbReport(r: Report): DbReport {
     session_id:    r.sessionId,
     session_title: r.sessionTitle,
     submitted_at:  r.submittedAt,
+    submitted_by:  r.submittedBy ?? null,
     attendees:     r.attendees,
     engagement:    r.engagement,
     highlights:    r.highlights,

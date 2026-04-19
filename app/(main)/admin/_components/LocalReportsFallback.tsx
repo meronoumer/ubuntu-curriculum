@@ -9,6 +9,7 @@ function toDisplay(r: Report): DisplayReport {
     id: r.id,
     sessionTitle: r.sessionTitle,
     submittedAt: r.submittedAt,
+    submittedBy: r.submittedBy || undefined,
     attendees: r.attendees,
     engagement: r.engagement,
     highlights: r.highlights,

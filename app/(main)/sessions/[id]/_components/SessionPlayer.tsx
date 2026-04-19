@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Session, Step, StepType } from "@/app/_lib/mock-data";
+import { getSupabaseClient } from "@/app/_lib/supabase";
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
@@ -117,43 +119,141 @@ function CompletionScreen({ session }: { session: Session }) {
   );
 }
 
+// ─── Start gate ───────────────────────────────────────────────────────────────
+// Shown for upcoming sessions so the facilitator explicitly kicks off the session
+// and the status is written to Supabase before the steps begin.
+
+function StartGate({
+  session,
+  sessionDbId,
+  onStart,
+}: {
+  session: Session;
+  sessionDbId: string;
+  onStart: () => void;
+}) {
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleStart() {
+    setStarting(true);
+    setError(null);
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { error: dbError } = await supabase
+        .from("sessions")
+        .update({ status: "in-progress", started_at: new Date().toISOString() })
+        .eq("id", sessionDbId);
+
+      if (dbError) {
+        setError("Could not start session. Please try again.");
+        setStarting(false);
+        return;
+      }
+    }
+
+    // Refresh server data so the sessions list reflects the new status,
+    // then proceed to the step player.
+    router.refresh();
+    onStart();
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-6 py-16 text-center">
+      <div className="space-y-1">
+        <Link
+          href="/sessions"
+          className="text-xs text-[#7A5C3E]/60 hover:text-[#7A5C3E] transition-colors"
+        >
+          ← Back to sessions
+        </Link>
+        <h1 className="text-lg font-semibold text-[#1F2937] mt-2 leading-snug">
+          {session.title}
+        </h1>
+        <p className="text-sm text-[#1F2937]/50">
+          {session.location} · {new Date(session.date).toLocaleDateString("en-GB", {
+            day: "numeric", month: "short", year: "numeric"
+          })}
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#EDE4D3] bg-white px-5 py-4 text-left max-w-sm w-full space-y-1.5">
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7A5C3E]">
+          Ready to begin?
+        </p>
+        <p className="text-sm text-[#1F2937]/60 leading-relaxed">
+          This session has {session.totalSteps} steps. Starting will mark it as in-progress
+          so your program manager can track live session delivery.
+        </p>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
+
+      <button
+        onClick={handleStart}
+        disabled={starting}
+        className="rounded-xl bg-[#1F4D3A] px-8 py-3 text-sm font-semibold text-white hover:bg-[#173d2e] transition-colors disabled:opacity-50"
+      >
+        {starting ? "Starting…" : "Start Session"}
+      </button>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 type Props = {
   session: Session;
   steps: Step[];
+  sessionDbId?: string;                                   // Supabase UUID (absent for mock sessions)
+  initialStatus?: "upcoming" | "in-progress" | "completed"; // passed from page
 };
 
-export default function SessionPlayer({ session, steps }: Props) {
-  // Index of the step currently on screen
+export default function SessionPlayer({ session, steps, sessionDbId, initialStatus }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
-  // Furthest step the facilitator has unlocked (0-indexed)
   const [highestStep, setHighestStep] = useState(0);
-  // Whether the completion screen is showing
   const [done, setDone] = useState(false);
+  // If the session is "upcoming" and we have a real Supabase ID,
+  // show the start gate before allowing the player to run.
+  const [showStartGate, setShowStartGate] = useState(
+    initialStatus === "upcoming" && !!sessionDbId
+  );
 
   // Restore progress from localStorage on first render
   useEffect(() => {
     const saved = loadProgress(session.id);
     setHighestStep(saved);
     setCurrentStep(saved);
-    // If they previously finished all steps, go straight to done
     if (saved >= steps.length) setDone(true);
   }, [session.id, steps.length]);
 
-  function handleNext() {
+  async function handleNext() {
     const nextStep = currentStep + 1;
 
     if (nextStep >= steps.length) {
-      // All steps done
-      const newHighest = steps.length; // sentinel value: "finished"
+      const newHighest = steps.length;
       setHighestStep(newHighest);
       saveProgress(session.id, newHighest);
+
+      // Mark session completed in Supabase when a real session ID is available
+      if (sessionDbId) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          await supabase
+            .from("sessions")
+            .update({ status: "completed", completed_at: new Date().toISOString() })
+            .eq("id", sessionDbId);
+        }
+      }
+
       setDone(true);
       return;
     }
 
-    // Advance the unlock frontier only when moving past the edge
     const newHighest = Math.max(highestStep, nextStep);
     setHighestStep(newHighest);
     saveProgress(session.id, newHighest);
@@ -164,12 +264,22 @@ export default function SessionPlayer({ session, steps }: Props) {
     setCurrentStep((s) => Math.max(0, s - 1));
   }
 
+  // Show start gate for upcoming real sessions
+  if (showStartGate && sessionDbId) {
+    return (
+      <StartGate
+        session={session}
+        sessionDbId={sessionDbId}
+        onStart={() => setShowStartGate(false)}
+      />
+    );
+  }
+
   if (done) {
     return <CompletionScreen session={session} />;
   }
 
   const step = steps[currentStep];
-  // Can only go forward to steps the facilitator has already unlocked
   const canGoNext = currentStep <= highestStep;
   const isLastStep = currentStep === steps.length - 1;
 

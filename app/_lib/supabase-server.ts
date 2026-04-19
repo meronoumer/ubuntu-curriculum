@@ -37,6 +37,43 @@ export async function getSupabaseServerClient() {
   });
 }
 
+// ─── Session helpers ──────────────────────────────────────────────────────────
+
+import type { DbSession } from "./supabase";
+
+/** Fetch all sessions ordered by date. Returns null when Supabase is not configured. */
+export async function fetchSessions(): Promise<DbSession[] | null> {
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("*")
+    .order("date", { ascending: true });
+
+  if (error) {
+    console.error("[sessions] Supabase fetch failed:", error.message);
+    return null;
+  }
+
+  return data as DbSession[];
+}
+
+/** Fetch a single session by ID. Returns null if not found or Supabase not configured. */
+export async function fetchSession(id: string): Promise<DbSession | null> {
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) return null;
+  return data as DbSession;
+}
+
 // ─── Proxy client (proxy.ts only) ────────────────────────────────────────────
 // Reads session cookies from the incoming request and writes refreshed tokens
 // back onto the response. Only call this inside proxy.ts.

@@ -8,6 +8,7 @@ import { createBrowserClient } from "@supabase/ssr";
 //     session_id   text        not null,
 //     session_title text       not null,
 //     submitted_at timestamptz not null,
+//     submitted_by text,
 //     attendees    int         not null,
 //     engagement   int         not null check (engagement between 1 and 5),
 //     highlights   text        not null,
@@ -20,11 +21,28 @@ import { createBrowserClient } from "@supabase/ssr";
 //   create policy "Allow anon insert" on reports for insert with check (true);
 //   create policy "Allow anon select" on reports for select using (true);
 
+// ─── Sessions table ───────────────────────────────────────────────────────────
+// Mirrors the `sessions` table in Supabase.
+export type DbSession = {
+  id: string;
+  title: string;
+  description: string;
+  date: string;           // ISO date string (YYYY-MM-DD)
+  location: string;
+  assigned_to: string;    // facilitator email
+  template_id: string | null;  // maps to a MOCK_STEPS key
+  status: "upcoming" | "in-progress" | "completed";
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type DbReport = {
   id: string;
   session_id: string;
   session_title: string;
   submitted_at: string;
+  submitted_by: string | null;
   attendees: number;
   engagement: number;
   highlights: string;
