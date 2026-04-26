@@ -43,27 +43,29 @@ export function fidelityLabel(score: number): "Poor" | "Fair" | "Good" {
   return "Poor";
 }
 
-/**
- * Returns a Tailwind-friendly color class string for fidelity badges/cards.
- * This matches the import expected by SessionPlayer.tsx.
- */
-export function fidelityColour(score: number): string {
+export function fidelityColour(score: number): { bg: string; text: string } {
   const label = fidelityLabel(score);
 
   if (label === "Good") {
-    return "bg-green-100 text-green-700";
+    return {
+      bg: "bg-green-100",
+      text: "text-green-700",
+    };
   }
 
   if (label === "Fair") {
-    return "bg-yellow-100 text-yellow-800";
+    return {
+      bg: "bg-yellow-100",
+      text: "text-yellow-800",
+    };
   }
 
-  return "bg-red-100 text-red-700";
+  return {
+    bg: "bg-red-100",
+    text: "text-red-700",
+  };
 }
 
-/**
- * Optional convenience helper if other parts of the UI want both label + simple color name.
- */
 export function fidelityStatus(score: number) {
   const label = fidelityLabel(score);
   const color =

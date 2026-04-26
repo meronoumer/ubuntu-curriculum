@@ -4,18 +4,27 @@ import { fetchSession } from "@/app/_lib/supabase-server";
 import type { DbSession } from "@/app/_lib/supabase";
 import SessionPlayer from "./_components/SessionPlayer";
 
+function normalizeStatus(
+  status: string | null | undefined
+): Session["status"] {
+  if (status === "in-progress") return "in-progress";
+  if (status === "completed") return "completed";
+  return "upcoming";
+}
+
 // Convert a Supabase session into the Session shape SessionPlayer expects.
 // Steps always come from MOCK_STEPS (keyed by template_id).
 function dbToSession(s: DbSession): Session {
   const steps = s.template_id ? (MOCK_STEPS[s.template_id] ?? []) : [];
+
   return {
     id: s.id,
     title: s.title,
-    description: s.description,
+    description: s.description ?? "No description provided yet.",
     date: s.date,
-    location: s.location,
-    facilitator: s.assigned_to,
-    status: s.status as Session["status"],
+    location: s.location ?? "Location not set",
+    facilitator: s.assigned_to ?? s.facilitator_email ?? "Unassigned",
+    status: normalizeStatus(s.status),
     totalSteps: steps.length,
   };
 }
@@ -33,7 +42,9 @@ export default async function SessionPlayerPage({
   if (dbSession) {
     // Real session found — use Supabase data, look up steps by template_id.
     const session = dbToSession(dbSession);
-    const steps = dbSession.template_id ? (MOCK_STEPS[dbSession.template_id] ?? []) : [];
+    const steps = dbSession.template_id
+      ? (MOCK_STEPS[dbSession.template_id] ?? [])
+      : [];
 
     if (steps.length === 0) {
       // Session exists but has no curriculum template assigned.
@@ -52,14 +63,14 @@ export default async function SessionPlayerPage({
         session={session}
         steps={steps}
         sessionDbId={dbSession.id}
-        initialStatus={dbSession.status}
+        initialStatus={normalizeStatus(dbSession.status)}
       />
     );
   }
 
   // 2. Fall back to mock data (demo mode / Supabase not configured).
   const mockSession = MOCK_SESSIONS.find((s) => s.id === id);
-  const mockSteps   = MOCK_STEPS[id];
+  const mockSteps = MOCK_STEPS[id];
 
   if (!mockSession || !mockSteps) notFound();
 
@@ -67,7 +78,6 @@ export default async function SessionPlayerPage({
     <SessionPlayer
       session={mockSession}
       steps={mockSteps}
-      // No sessionDbId — mock sessions don't write back to Supabase.
     />
   );
 }
